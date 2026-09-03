@@ -1,0 +1,57 @@
+name: Daily Automated Shorts Generator & Uploader
+
+on:
+  schedule:
+    # Runs every day at 8:00 PM IST (14:30 UTC)
+    - cron: '30 14 * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  generate-and-upload-short:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install System Dependencies (FFmpeg & Fonts)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-freefont-ttf fonts-dejavu-core
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Restore Credentials & Secrets
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          FACEBOOK_ACCESS_TOKEN: ${{ secrets.FACEBOOK_ACCESS_TOKEN }}
+          FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
+          CLIENT_SECRETS_JSON: ${{ secrets.YOUTUBE_CLIENT_SECRETS_JSON }}
+          TOKEN_JSON: ${{ secrets.YOUTUBE_TOKEN_JSON }}
+        run: |
+          echo "GROQ_API_KEY=${GROQ_API_KEY}" > .env
+          if [ -n "${FACEBOOK_ACCESS_TOKEN}" ]; then echo "FACEBOOK_ACCESS_TOKEN=${FACEBOOK_ACCESS_TOKEN}" >> .env; fi
+          if [ -n "${FACEBOOK_PAGE_ID}" ]; then echo "FACEBOOK_PAGE_ID=${FACEBOOK_PAGE_ID}" >> .env; fi
+          if [ -n "${CLIENT_SECRETS_JSON}" ]; then echo "${CLIENT_SECRETS_JSON}" > client_secret.json; fi
+          if [ -n "${TOKEN_JSON}" ]; then echo "${TOKEN_JSON}" > token.json; fi
+
+      - name: Run Shorts Generation & Auto-Upload Pipeline
+        run: |
+          python main.py
+
+      - name: Commit Processed History (Avoid Duplicates)
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add processed_videos.json || true
+          git commit -m "Update processed_videos.json history [skip ci]" || true
+          git push || true

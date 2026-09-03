@@ -1,0 +1,19 @@
+# Python virtual environment & cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+env/
+venv/
+
+# Local Environment & Credentials (NEVER commit to GitHub!)
+.env
+client_secret.json
+token.json
+
+# Temporary Data & Output Files
+downloads/
+temp/
+output_shorts/
+processed_videos.json
