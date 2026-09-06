@@ -296,9 +296,13 @@ def fetch_and_download_most_viral_podcast(
             'quiet': True,
             'socket_timeout': 30,
             'nocheckcertificate': True,
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                'Accept-Language': 'en-US,en;q=0.9'
+            },
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['mweb', 'tv_embedded', 'ios', 'android']
+                    'player_client': ['tv_embedded', 'mweb']
                 }
             }
         }
@@ -335,12 +339,12 @@ def fetch_and_download_most_viral_podcast(
                 time.sleep(3)
 
         if entries_sorted:
-            # Try downloading top candidates with multi-client fallback strategies
+            # Try downloading top candidates strictly with cloud-friendly unthrottled clients (tv_embedded, mweb)
             player_client_sets = [
-                ['mweb', 'tv_embedded', 'ios'],
-                ['tv_embedded', 'mweb', 'android'],
-                ['android_creator', 'ios'],
-                ['web_safari', 'mweb']
+                ['tv_embedded'],
+                ['mweb'],
+                ['tv_embedded', 'mweb'],
+                ['web_embedded']
             ]
 
             for candidate in entries_sorted[:5]:
@@ -370,6 +374,10 @@ def fetch_and_download_most_viral_podcast(
                         'retries': 10,
                         'fragment_retries': 10,
                         'nocheckcertificate': True,
+                        'http_headers': {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                            'Accept-Language': 'en-US,en;q=0.9'
+                        },
                         'extractor_args': {
                             'youtube': {
                                 'player_client': p_clients
