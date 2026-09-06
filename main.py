@@ -295,7 +295,12 @@ def fetch_and_download_most_viral_podcast(
             'extract_flat': True,
             'quiet': True,
             'socket_timeout': 30,
-            'extractor_args': {'youtube': {'player_client': ['android', 'ios', 'web']}}
+            'nocheckcertificate': True,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['mweb', 'tv_embedded', 'ios', 'android']
+                }
+            }
         }
         
         entries_sorted = []
@@ -310,7 +315,7 @@ def fetch_and_download_most_viral_podcast(
                         if e:
                             v_id = e.get('id')
                             v_url = e.get('url') or f"https://www.youtube.com/watch?v={v_id}"
-                            v_title = e.get('title', 'Hindi Podcast')
+                            v_title = e.get('title', 'Podcast')
                             v_views = e.get('view_count') or 0
                             if v_id and v_id not in processed_list:
                                 entries_with_views.append({
@@ -330,7 +335,14 @@ def fetch_and_download_most_viral_podcast(
                 time.sleep(3)
 
         if entries_sorted:
-            # Try downloading top candidates until one succeeds cleanly
+            # Try downloading top candidates with multi-client fallback strategies
+            player_client_sets = [
+                ['mweb', 'tv_embedded', 'ios'],
+                ['tv_embedded', 'mweb', 'android'],
+                ['android_creator', 'ios'],
+                ['web_safari', 'mweb']
+            ]
+
             for candidate in entries_sorted[:5]:
                 v_url = candidate["url"]
                 v_id = candidate["id"]
@@ -346,43 +358,49 @@ def fetch_and_download_most_viral_podcast(
 
                 output_template = os.path.join(download_dir, f"input_video_{v_id}.%(ext)s")
 
-                ydl_opts_dl = {
-                    'format': 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]',
-                    'outtmpl': output_template,
-                    'merge_output_format': 'mp4',
-                    'overwrites': True,
-                    'noplaylist': True,
-                    'quiet': False,
-                    'socket_timeout': 30,
-                    'retries': 10,
-                    'fragment_retries': 10,
-                    'extractor_args': {'youtube': {'player_client': ['android', 'ios', 'web']}},
-                    'download_ranges': download_range_func(None, [(0, max_duration_sec)]),
-                    'force_keyframes_at_cuts': True,
-                    'concurrent_fragment_downloads': 8,
-                }
-
-                try:
-                    with yt_dlp.YoutubeDL(ydl_opts_dl) as ydl:
-                        info_dict = ydl.extract_info(v_url, download=True)
-                        
-                        expected_file = None
-                        for file in os.listdir(download_dir):
-                            if file.startswith("input_video") and not file.endswith(".part"):
-                                expected_file = os.path.join(download_dir, file)
-                                break
-
-                        if expected_file and os.path.exists(expected_file) and os.path.getsize(expected_file) > 1000000:
-                            logger.info(f"Download Success! '{v_title}' -> {expected_file}")
-                            return {
-                                "file_path": os.path.abspath(expected_file),
-                                "title": v_title,
-                                "id": v_id,
-                                "duration": float(max_duration_sec),
-                                "topic": current_topic
+                for p_clients in player_client_sets:
+                    ydl_opts_dl = {
+                        'format': 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]',
+                        'outtmpl': output_template,
+                        'merge_output_format': 'mp4',
+                        'overwrites': True,
+                        'noplaylist': True,
+                        'quiet': False,
+                        'socket_timeout': 30,
+                        'retries': 10,
+                        'fragment_retries': 10,
+                        'nocheckcertificate': True,
+                        'extractor_args': {
+                            'youtube': {
+                                'player_client': p_clients
                             }
-                except Exception as e:
-                    logger.warning(f"Download candidate '{v_title}' failed ({e}). Trying next candidate...")
+                        },
+                        'download_ranges': download_range_func(None, [(0, max_duration_sec)]),
+                        'force_keyframes_at_cuts': True,
+                        'concurrent_fragment_downloads': 8,
+                    }
+
+                    try:
+                        with yt_dlp.YoutubeDL(ydl_opts_dl) as ydl:
+                            info_dict = ydl.extract_info(v_url, download=True)
+                            
+                            expected_file = None
+                            for file in os.listdir(download_dir):
+                                if file.startswith("input_video") and not file.endswith(".part"):
+                                    expected_file = os.path.join(download_dir, file)
+                                    break
+
+                            if expected_file and os.path.exists(expected_file) and os.path.getsize(expected_file) > 1000000:
+                                logger.info(f"Download Success! '{v_title}' -> {expected_file}")
+                                return {
+                                    "file_path": os.path.abspath(expected_file),
+                                    "title": v_title,
+                                    "id": v_id,
+                                    "duration": float(max_duration_sec),
+                                    "topic": current_topic
+                                }
+                    except Exception as e:
+                        logger.warning(f"Download candidate '{v_title}' with clients {p_clients} failed ({e}). Retrying with fallback client...")
 
         # If current topic produced no unprocessed video candidates or all failed, pick next topic!
         logger.warning(f"No unprocessed videos found for topic '{current_topic}'. Switching to next daily topic...")
