@@ -47,6 +47,7 @@ FACEBOOK_TARGET_ID = os.getenv("FACEBOOK_PAGE_ID", "").strip() or "me"
 SEARCH_QUERY = os.getenv("SEARCH_QUERY", "hindi podcast interview")
 PARTS_PER_VIDEO = int(os.getenv("PARTS_PER_VIDEO", "1"))  # Exactly 1 Best Short extracted per podcast video
 DURATION_PER_SHORT = int(os.getenv("DURATION_PER_SHORT", "60"))
+MIN_CLIP_START_SEC = float(os.getenv("MIN_CLIP_START_SEC", "180.0"))  # Minimum 3 minutes (180s) start offset for shorts extraction
 YOUTUBE_CLIENT_SECRETS_FILE = os.getenv("YOUTUBE_CLIENT_SECRETS_FILE", "client_secret.json")
 YOUTUBE_TOKEN_FILE = os.getenv("YOUTUBE_TOKEN_FILE", "token.json")
 
@@ -59,6 +60,62 @@ TOP_VIDEO_PATH = "mk.mp4"
 INTRO_HOOK_DELAY_SEC = 3.0  # Duration for mk.mp4 intro speech ("ye video pahle last tak dekho")
 PROCESSED_VIDEOS_FILE = "processed_videos.json"
 QUEUE_INFO_FILE = os.path.join(QUEUE_DIR, "queue_info.json")
+TOPIC_STATE_FILE = "topic_state.json"
+
+# 100% Anti-Copyright & Fair Use Settings
+ENABLE_FAIRUSE_TRANSFORM = True
+FAIRUSE_SPEED_FACTOR = 1.04  # 4% tempo & frame speedup to defeat Content ID audio/video fingerprint matching
+FAIRUSE_WATERMARK_TEXT = "TRANSFORMATIVE FAIR USE"
+
+# Aesthetic Video Visual Filters (Dynamic Color Grading)
+VIDEO_FILTERS_LIST = [
+    "eq=contrast=1.08:brightness=0.02:saturation=1.15",  # Warm Cinematic
+    "eq=contrast=1.06:brightness=0.01:saturation=1.25",  # Vibrant HD
+    "eq=contrast=1.10:brightness=-0.01:saturation=1.08", # Sharp Contrast
+    "eq=contrast=1.05:brightness=0.03:saturation=1.10,colorbalance=rs=0.03:bs=-0.03",  # Golden Warm
+    "eq=contrast=1.07:brightness=0.01:saturation=1.12,colorbalance=rs=-0.02:bs=0.04"   # Cool Studio Tech
+]
+
+def get_random_video_filter() -> str:
+    """Returns a random visual aesthetic filter for the podcast video."""
+    import random
+    selected_filter = random.choice(VIDEO_FILTERS_LIST)
+    logger.info(f"🎨 Applied Dynamic Aesthetic Video Filter: '{selected_filter}'")
+    return selected_filter
+
+# 30 Seed Human Podcast Topics
+SEED_TOPICS_LIST = [
+    "Human Body Podcast",
+    "Human Psychology Podcast",
+    "Brain Science Podcast",
+    "Neuroscience Podcast",
+    "Mental Health Podcast",
+    "Sleep Science Podcast",
+    "Dopamine & Motivation Podcast",
+    "Stress & Anxiety Podcast",
+    "Focus & Productivity Podcast",
+    "Memory & Learning Podcast",
+    "Human Behavior Podcast",
+    "Emotions & Psychology Podcast",
+    "Confidence & Self-Esteem Podcast",
+    "Relationships & Dating Psychology Podcast",
+    "Social Psychology Podcast",
+    "Mindset & Self-Improvement Podcast",
+    "Longevity & Healthy Aging Podcast",
+    "Nutrition & Diet Podcast",
+    "Fitness & Exercise Science Podcast",
+    "Muscle Growth Podcast",
+    "Hormones & Testosterone Podcast",
+    "Weight Loss Science Podcast",
+    "Heart Health Podcast",
+    "Gut Health Podcast",
+    "Cold Exposure & Recovery Podcast",
+    "Meditation & Mindfulness Podcast",
+    "Creativity & Human Performance Podcast",
+    "Addiction & Habit Formation Podcast",
+    "Emotional Intelligence Podcast",
+    "Science of Happiness Podcast"
+]
 
 # Standard Fair Use Disclaimer against copyright strikes
 FAIR_USE_DISCLAIMER = """
@@ -108,6 +165,71 @@ def mark_video_as_processed(video_id: str):
             json.dump(processed, f, indent=2)
         logger.info(f"Video ID '{video_id}' saved to '{PROCESSED_VIDEOS_FILE}' (Total Processed: {len(processed)})")
 
+def load_topic_state() -> Dict[str, Any]:
+    """Loads current topic state from topic_state.json."""
+    if os.path.exists(TOPIC_STATE_FILE):
+        try:
+            with open(TOPIC_STATE_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+def save_topic_state(state: Dict[str, Any]):
+    """Saves topic state into topic_state.json."""
+    with open(TOPIC_STATE_FILE, "w", encoding="utf-8") as f:
+        json.dump(state, f, indent=2, ensure_ascii=False)
+
+def get_next_human_topic(groq_client=None) -> str:
+    """
+    Retrieves the next daily topic for human health/psychology/science podcasts.
+    Cycles through SEED_TOPICS_LIST sequentially. Once seed topics are exhausted,
+    uses Groq LLM to dynamically generate new unique human-centric podcast topics.
+    """
+    state = load_topic_state()
+    current_index = state.get("current_index", 0)
+    used_topics = state.get("used_topics", [])
+
+    topic = ""
+    if current_index < len(SEED_TOPICS_LIST):
+        topic = SEED_TOPICS_LIST[current_index]
+        logger.info(f"📍 Selected Seed Topic ({current_index + 1}/{len(SEED_TOPICS_LIST)}): '{topic}'")
+    else:
+        # Dynamically generate AI topic using Groq LLM
+        if groq_client:
+            try:
+                recent_used = used_topics[-30:] if used_topics else []
+                prompt = (
+                    "You are a podcast content strategist. Generate 1 fresh, highly engaging YouTube search topic for a Hindi podcast interview. "
+                    "The topic MUST be about human biology, psychology, neuroscience, health, brain science, habits, performance, or mind. "
+                    f"Do NOT reuse any of these recent topics: {json.dumps(recent_used)}. "
+                    "Return ONLY a JSON object: {\"topic\": \"Topic Name Podcast\"}"
+                )
+                response = groq_client.chat.completions.create(
+                    messages=[{"role": "user", "content": prompt}],
+                    model="llama-3.3-70b-versatile",
+                    temperature=0.7
+                )
+                res_text = response.choices[0].message.content or ""
+                parsed = parse_json_safely(res_text)
+                topic = parsed.get("topic", "").strip()
+            except Exception as e:
+                logger.warning(f"AI topic generation warning: {e}")
+
+        if not topic:
+            fallback_idx = current_index % len(SEED_TOPICS_LIST)
+            topic = SEED_TOPICS_LIST[fallback_idx]
+            logger.info(f"📍 AI topic fallback selected seed topic: '{topic}'")
+
+    state["current_index"] = current_index + 1
+    if topic not in used_topics:
+        used_topics.append(topic)
+    state["used_topics"] = used_topics
+    state["last_used_topic"] = topic
+    save_topic_state(state)
+
+    return topic
+
 def load_queue_info() -> Dict[str, Any]:
     """Loads queue metadata from queue_info.json."""
     if os.path.exists(QUEUE_INFO_FILE):
@@ -151,112 +273,122 @@ def get_available_sfx_files() -> List[str]:
 def fetch_and_download_most_viral_podcast(
     search_query: str = "hindi podcast interview",
     download_dir: str = "downloads",
-    max_duration_sec: int = 300
+    max_duration_sec: int = 300,
+    groq_client: Any = None
 ) -> Dict[str, Any]:
     """
-    Searches YouTube for viral Hindi podcasts, sorts by view count,
-    and downloads the first video that succeeds (with automatic fallback if network fails).
+    Searches YouTube for viral Hindi podcasts for a topic, sorts by view count,
+    strictly filters out ALREADY PROCESSED video IDs, and downloads candidate video.
+    If current topic has no unprocessed candidates, automatically switches to next topic.
     """
     import yt_dlp
     from yt_dlp.utils import download_range_func
 
     processed_list = load_processed_videos()
-    logger.info(f"Searching YouTube for most viral Hindi podcasts ('{search_query}')...")
-    
-    query = f"ytsearch15:{search_query}"
-    ydl_opts_search = {
-        'extract_flat': True,
-        'quiet': True,
-        'socket_timeout': 30,
-        'extractor_args': {'youtube': {'player_client': ['android', 'ios', 'web']}}
-    }
-    
-    entries_sorted = []
-    for retry in range(4):
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts_search) as ydl:
-                info = ydl.extract_info(query, download=False)
-                entries = info.get('entries', []) if info else []
-                
-                entries_with_views = []
-                for e in entries:
-                    if e:
-                        v_id = e.get('id')
-                        v_url = e.get('url') or f"https://www.youtube.com/watch?v={v_id}"
-                        v_title = e.get('title', 'Hindi Podcast')
-                        v_views = e.get('view_count') or 0
-                        if v_id and v_id not in processed_list:
-                            entries_with_views.append({
-                                "id": v_id,
-                                "url": v_url,
-                                "title": v_title,
-                                "views": v_views
-                            })
+    current_topic = search_query
 
-                if entries_with_views:
-                    entries_sorted = sorted(entries_with_views, key=lambda x: x["views"], reverse=True)
-                    break
-        except Exception as e:
-            logger.warning(f"YouTube search network retry ({retry+1}/4): {e}")
-            time.sleep(3)
-
-    if not entries_sorted:
-        raise RuntimeError("Could not retrieve viral Hindi podcast search entries from YouTube due to network timeout.")
-
-    # Try downloading top candidates until one succeeds cleanly
-    for candidate in entries_sorted[:5]:
-        v_url = candidate["url"]
-        v_id = candidate["id"]
-        v_title = candidate["title"]
-        logger.info(f"Attempting download for Most Viral Candidate ({candidate['views']:,} views): '{v_title}' (ID: {v_id})...")
-
-        for f in os.listdir(download_dir):
-            if f.startswith("input_video"):
-                try:
-                    os.remove(os.path.join(download_dir, f))
-                except Exception:
-                    pass
-
-        output_template = os.path.join(download_dir, f"input_video_{v_id}.%(ext)s")
-
-        ydl_opts_dl = {
-            'format': 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]',
-            'outtmpl': output_template,
-            'merge_output_format': 'mp4',
-            'overwrites': True,
-            'noplaylist': True,
-            'quiet': False,
+    for topic_attempt in range(5):
+        logger.info(f"Searching YouTube for most viral Hindi podcasts (Topic #{topic_attempt + 1}: '{current_topic}')...")
+        
+        query = f"ytsearch25:{current_topic} hindi podcast"
+        ydl_opts_search = {
+            'extract_flat': True,
+            'quiet': True,
             'socket_timeout': 30,
-            'retries': 10,
-            'fragment_retries': 10,
-            'extractor_args': {'youtube': {'player_client': ['android', 'ios', 'web']}},
-            'download_ranges': download_range_func(None, [(0, max_duration_sec)]),
-            'force_keyframes_at_cuts': True,
-            'concurrent_fragment_downloads': 8,
+            'extractor_args': {'youtube': {'player_client': ['android', 'ios', 'web']}}
         }
+        
+        entries_sorted = []
+        for retry in range(4):
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts_search) as ydl:
+                    info = ydl.extract_info(query, download=False)
+                    entries = info.get('entries', []) if info else []
+                    
+                    entries_with_views = []
+                    for e in entries:
+                        if e:
+                            v_id = e.get('id')
+                            v_url = e.get('url') or f"https://www.youtube.com/watch?v={v_id}"
+                            v_title = e.get('title', 'Hindi Podcast')
+                            v_views = e.get('view_count') or 0
+                            if v_id and v_id not in processed_list:
+                                entries_with_views.append({
+                                    "id": v_id,
+                                    "url": v_url,
+                                    "title": v_title,
+                                    "views": v_views
+                                })
+                            elif v_id:
+                                logger.info(f"Skipping previously processed YouTube video ID: {v_id}")
 
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts_dl) as ydl:
-                info_dict = ydl.extract_info(v_url, download=True)
-                
-                expected_file = None
-                for file in os.listdir(download_dir):
-                    if file.startswith("input_video") and not file.endswith(".part"):
-                        expected_file = os.path.join(download_dir, file)
+                    if entries_with_views:
+                        entries_sorted = sorted(entries_with_views, key=lambda x: x["views"], reverse=True)
                         break
+            except Exception as e:
+                logger.warning(f"YouTube search network retry ({retry+1}/4): {e}")
+                time.sleep(3)
 
-                if expected_file and os.path.exists(expected_file) and os.path.getsize(expected_file) > 1000000:
-                    logger.info(f"Download Success! '{v_title}' -> {expected_file}")
-                    return {
-                        "file_path": os.path.abspath(expected_file),
-                        "title": v_title,
-                        "id": v_id,
-                        "duration": float(max_duration_sec)
-                    }
-        except Exception as e:
-            logger.warning(f"Download candidate '{v_title}' failed ({e}). Trying next candidate...")
+        if entries_sorted:
+            # Try downloading top candidates until one succeeds cleanly
+            for candidate in entries_sorted[:5]:
+                v_url = candidate["url"]
+                v_id = candidate["id"]
+                v_title = candidate["title"]
+                logger.info(f"Attempting download for Most Viral Candidate ({candidate['views']:,} views): '{v_title}' (ID: {v_id})...")
 
-    raise RuntimeError("All video download candidates failed due to network timeouts!")
+                for f in os.listdir(download_dir):
+                    if f.startswith("input_video"):
+                        try:
+                            os.remove(os.path.join(download_dir, f))
+                        except Exception:
+                            pass
+
+                output_template = os.path.join(download_dir, f"input_video_{v_id}.%(ext)s")
+
+                ydl_opts_dl = {
+                    'format': 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]',
+                    'outtmpl': output_template,
+                    'merge_output_format': 'mp4',
+                    'overwrites': True,
+                    'noplaylist': True,
+                    'quiet': False,
+                    'socket_timeout': 30,
+                    'retries': 10,
+                    'fragment_retries': 10,
+                    'extractor_args': {'youtube': {'player_client': ['android', 'ios', 'web']}},
+                    'download_ranges': download_range_func(None, [(0, max_duration_sec)]),
+                    'force_keyframes_at_cuts': True,
+                    'concurrent_fragment_downloads': 8,
+                }
+
+                try:
+                    with yt_dlp.YoutubeDL(ydl_opts_dl) as ydl:
+                        info_dict = ydl.extract_info(v_url, download=True)
+                        
+                        expected_file = None
+                        for file in os.listdir(download_dir):
+                            if file.startswith("input_video") and not file.endswith(".part"):
+                                expected_file = os.path.join(download_dir, file)
+                                break
+
+                        if expected_file and os.path.exists(expected_file) and os.path.getsize(expected_file) > 1000000:
+                            logger.info(f"Download Success! '{v_title}' -> {expected_file}")
+                            return {
+                                "file_path": os.path.abspath(expected_file),
+                                "title": v_title,
+                                "id": v_id,
+                                "duration": float(max_duration_sec),
+                                "topic": current_topic
+                            }
+                except Exception as e:
+                    logger.warning(f"Download candidate '{v_title}' failed ({e}). Trying next candidate...")
+
+        # If current topic produced no unprocessed video candidates or all failed, pick next topic!
+        logger.warning(f"No unprocessed videos found for topic '{current_topic}'. Switching to next daily topic...")
+        current_topic = get_next_human_topic(groq_client=groq_client)
+
+    raise RuntimeError("All video download candidates failed across all attempted topics!")
 
 # ==============================================================================
 # MODULE 2: AI TRANSCRIPT TOPIC & VIRAL HIGHLIGHT SELECTION (LLM Content Analysis)
@@ -271,12 +403,15 @@ def find_ai_viral_highlight_timestamps(
     """
     Transcribes podcast dialogue via Groq Whisper and uses Groq LLM topic intelligence to analyze
     the actual conversation content and select the single BEST viral story/highlight moment.
+    Enforces minimum start timestamp offset (MIN_CLIP_START_SEC = 180s / 3 mins).
     """
-    logger.info(f"Analyzing AI Transcript Content Intelligence across {total_duration:.1f}s podcast to find top viral topic/highlight...")
+    logger.info(f"Analyzing AI Transcript Content Intelligence across {total_duration:.1f}s podcast (starting after {MIN_CLIP_START_SEC:.0f}s / 3 mins)...")
 
-    # Extract audio sample (first 300 seconds) for AI transcript analysis
+    # Extract audio sample starting AFTER 3 minutes (180.0s) for AI transcript analysis
+    sample_start = min(MIN_CLIP_START_SEC, max(0.0, total_duration - window_size))
+    sample_duration = min(300.0, max(60.0, total_duration - sample_start))
     sample_audio_path = os.path.join(TEMP_DIR, "analysis_sample.mp3")
-    extract_original_audio_clip(video_path, start_sec=0.0, duration_sec=min(300.0, total_duration), output_audio_path=sample_audio_path)
+    extract_original_audio_clip(video_path, start_sec=sample_start, duration_sec=sample_duration, output_audio_path=sample_audio_path)
 
     try:
         with open(sample_audio_path, "rb") as file:
@@ -294,10 +429,11 @@ def find_ai_viral_highlight_timestamps(
         timed_transcript_lines = []
         for seg in segments:
             seg_start = seg.get("start") if isinstance(seg, dict) else getattr(seg, "start", 0.0)
+            actual_seg_start = sample_start + seg_start
             seg_text = seg.get("text") if isinstance(seg, dict) else getattr(seg, "text", "")
             seg_text = seg_text.strip()
             if seg_text:
-                timed_transcript_lines.append(f"[{seg_start:.1f}s]: {seg_text}")
+                timed_transcript_lines.append(f"[{actual_seg_start:.1f}s]: {seg_text}")
 
         if timed_transcript_lines:
             full_transcript_str = "\n".join(timed_transcript_lines[:60])
@@ -308,9 +444,11 @@ Read the following podcast transcript with timestamps:
 {full_transcript_str}
 
 Find the single MOST INTERESTING, VIRAL, ENGAGING, OR INSPIRATIONAL conversation story/topic moment ({window_size} seconds duration).
+CRITICAL RULE: The start_sec MUST be at least {MIN_CLIP_START_SEC:.1f} (after 3 minutes into the podcast).
+
 Return ONLY a valid JSON object matching this exact schema:
 {{
-  "start_sec": 45.0,
+  "start_sec": 210.0,
   "reason": "Short 1-sentence reason why this story/topic is viral"
 }}
 """
@@ -326,8 +464,8 @@ Return ONLY a valid JSON object matching this exact schema:
                     parsed = parse_json_safely(content)
                     if parsed and "start_sec" in parsed:
                         ai_start = float(parsed["start_sec"])
-                        max_start = max(0.0, total_duration - window_size)
-                        clamped_start = max(0.0, min(ai_start, max_start))
+                        max_start = max(MIN_CLIP_START_SEC, total_duration - window_size)
+                        clamped_start = max(MIN_CLIP_START_SEC, min(ai_start, max_start))
                         reason = parsed.get("reason", "Top viral conversation moment selected by AI")
                         logger.info(f"AI Selected Top Viral Topic Timestamp: {clamped_start:.1f}s (Reason: {reason})")
                         return [clamped_start][:num_windows]
@@ -337,8 +475,9 @@ Return ONLY a valid JSON object matching this exact schema:
     except Exception as e:
         logger.warning(f"AI Transcript analysis exception ({e}). Falling back to default start timestamp...")
 
-    logger.info("Fallback: Selected default start timestamp [0.0s]")
-    return [0.0][:num_windows]
+    fallback_start = min(MIN_CLIP_START_SEC, max(0.0, total_duration - window_size))
+    logger.info(f"Fallback: Selected default start timestamp [{fallback_start:.1f}s] (after 3 mins)")
+    return [fallback_start][:num_windows]
 
 # ==============================================================================
 # MODULE 3: ORIGINAL AUDIO EXTRACTION & SEO GENERATION
@@ -571,7 +710,7 @@ def generate_ass_subtitles(groq_client: Any, audio_mp3_path: str, output_ass_pat
                     })
                     chunk = []
 
-    ass_header = """[Script Info]
+    ass_header = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: 1080
 PlayResY: 1920
@@ -579,12 +718,15 @@ PlayResY: 1920
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Default,Arial Black,76,&H0000FFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,6,3,2,40,40,310,1
+Style: FairUseWatermark,Arial,34,&H80FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,4,2,7,30,30,40,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     with open(output_ass_path, "w", encoding="utf-8") as f:
         f.write(ass_header)
+        if ENABLE_FAIRUSE_TRANSFORM:
+            f.write(f"Dialogue: 0,0:00:00.00,0:10:00.00,FairUseWatermark,,0,0,0,,{FAIRUSE_WATERMARK_TEXT}\n")
         for entry in ass_events:
             s_str = format_ass_timestamp(entry["start"])
             e_str = format_ass_timestamp(entry["end"])
@@ -675,9 +817,15 @@ def render_short_with_original_audio(
     filter_parts = []
     main_dur = duration_sec + (intro_delay_sec if use_top_video else 0.0)
     
-    # 1. Video Canvas Construction
+    # 1. Video Canvas Construction & Anti-Copyright Transform
+    active_color_filter = get_random_video_filter() if ENABLE_FAIRUSE_TRANSFORM else "eq=contrast=1.0:brightness=0.0:saturation=1.0"
+
     if use_top_video:
-        filter_parts.append(f"[0:v]scale=1080:608:force_original_aspect_ratio=decrease,tpad=start_mode=clone:start_duration={intro_delay_sec}[mainv]")
+        if ENABLE_FAIRUSE_TRANSFORM:
+            filter_parts.append(f"[0:v]{active_color_filter},setpts=PTS/{FAIRUSE_SPEED_FACTOR},scale=1080:608:force_original_aspect_ratio=decrease,tpad=start_mode=clone:start_duration={intro_delay_sec}[mainv]")
+        else:
+            filter_parts.append(f"[0:v]scale=1080:608:force_original_aspect_ratio=decrease,tpad=start_mode=clone:start_duration={intro_delay_sec}[mainv]")
+
         filter_parts.append(f"[{top_v_idx}:v]scale=1080:608:force_original_aspect_ratio=decrease[topv]")
         filter_parts.append(f"color=c=black:s=1080x1920:d={main_dur}[bg]")
         filter_parts.append(f"[bg][topv]overlay=0:24[bg1]")
@@ -687,13 +835,17 @@ def render_short_with_original_audio(
         else:
             filter_parts.append(f"[bg2]{subtitles_filter}[v]")
     else:
-        letterbox_filter = "scale=1080:608:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black"
+        if ENABLE_FAIRUSE_TRANSFORM:
+            letterbox_filter = f"{active_color_filter},setpts=PTS/{FAIRUSE_SPEED_FACTOR},scale=1080:608:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black"
+        else:
+            letterbox_filter = "scale=1080:608:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black"
+
         if use_outro_video:
             filter_parts.append(f"[0:v]{letterbox_filter},{subtitles_filter},trim=duration={main_dur},setpts=PTS-STARTPTS,fps=30[v_main]")
         else:
             filter_parts.append(f"[0:v]{letterbox_filter},{subtitles_filter}[v]")
 
-    # 2. Audio Mix Construction
+    # 2. Audio Mix Construction & Audio Fingerprint Bypass
     audio_mix_str = ""
     mix_inputs = []
 
@@ -702,7 +854,11 @@ def render_short_with_original_audio(
         mix_inputs.append("[topa]")
 
     delay_ms = int(intro_delay_sec * 1000)
-    audio_mix_str += f"[0:a]adelay={delay_ms}|{delay_ms},volume=1.0[podca];"
+    if ENABLE_FAIRUSE_TRANSFORM:
+        audio_mix_str += f"[0:a]atempo={FAIRUSE_SPEED_FACTOR},asetrate=44100*1.01,aresample=44100,adelay={delay_ms}|{delay_ms},volume=1.0[podca];"
+    else:
+        audio_mix_str += f"[0:a]adelay={delay_ms}|{delay_ms},volume=1.0[podca];"
+
     mix_inputs.append("[podca]")
 
     if use_bgm:
@@ -925,8 +1081,17 @@ def main():
     if not valid_queued_parts:
         logger.info("Local Short Queue is empty! Searching for most viral unprocessed Hindi podcast on YouTube...")
         
-        # 1. Fetch & Download #1 most viral unprocessed podcast with automatic fallback retry across top candidates
-        video_data = fetch_and_download_most_viral_podcast(SEARCH_QUERY, DOWNLOAD_DIR, max_duration_sec=300)
+        # 1. Fetch next daily human podcast topic
+        daily_topic = get_next_human_topic(groq_client=groq_client)
+        logger.info(f"🎯 TODAY'S PODCAST TOPIC: '{daily_topic}'")
+
+        # 2. Fetch & Download #1 most viral unprocessed podcast with automatic fallback retry across top candidates
+        video_data = fetch_and_download_most_viral_podcast(
+            search_query=daily_topic,
+            download_dir=DOWNLOAD_DIR,
+            max_duration_sec=300,
+            groq_client=groq_client
+        )
         input_video_path = video_data["file_path"]
         video_title = video_data["title"]
         video_id = video_data["id"]

@@ -17,3 +17,4 @@ downloads/
 temp/
 output_shorts/
 processed_videos.json
+topic_state.json
