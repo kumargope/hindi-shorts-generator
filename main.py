@@ -302,7 +302,7 @@ def fetch_and_download_most_viral_podcast(
             },
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['tv_embedded', 'mweb']
+                    'player_client': ['visionos', 'android', 'ios', 'tv', 'web']
                 }
             }
         }
@@ -339,12 +339,12 @@ def fetch_and_download_most_viral_podcast(
                 time.sleep(3)
 
         if entries_sorted:
-            # Try downloading top candidates strictly with cloud-friendly unthrottled clients (tv_embedded, mweb)
+            # Try downloading top candidates with valid multi-client fallbacks (visionos, android, ios, tv, web)
             player_client_sets = [
-                ['tv_embedded'],
-                ['mweb'],
-                ['tv_embedded', 'mweb'],
-                ['web_embedded']
+                ['visionos', 'android', 'ios', 'tv', 'web'],
+                ['tv', 'web'],
+                ['android', 'ios'],
+                ['web']
             ]
 
             for candidate in entries_sorted[:5]:
@@ -364,7 +364,7 @@ def fetch_and_download_most_viral_podcast(
 
                 for p_clients in player_client_sets:
                     ydl_opts_dl = {
-                        'format': 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]',
+                        'format': 'bestvideo[height<=720]+bestaudio/best[height<=720]/best',
                         'outtmpl': output_template,
                         'merge_output_format': 'mp4',
                         'overwrites': True,
