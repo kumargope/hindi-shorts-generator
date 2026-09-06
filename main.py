@@ -302,7 +302,7 @@ def fetch_and_download_most_viral_podcast(
             },
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['visionos', 'android', 'ios', 'tv', 'web']
+                    'player_client': ['visionos', 'tv', 'web_creator']
                 }
             }
         }
@@ -339,11 +339,11 @@ def fetch_and_download_most_viral_podcast(
                 time.sleep(3)
 
         if entries_sorted:
-            # Try downloading top candidates with valid multi-client fallbacks (visionos, android, ios, tv, web)
+            # Multi-client fallbacks: prioritize Cloud Datacenter-safe clients (visionos, tv, web_creator) that bypass bot sign-in requirements
             player_client_sets = [
-                ['visionos', 'android', 'ios', 'tv', 'web'],
+                ['visionos', 'tv', 'web_creator'],
                 ['tv', 'web'],
-                ['android', 'ios'],
+                ['visionos', 'android', 'ios', 'tv', 'web'],
                 ['web']
             ]
 
