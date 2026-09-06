@@ -48,10 +48,10 @@ jobs:
         run: |
           python main.py
 
-      - name: Commit Processed History (Avoid Duplicates)
+      - name: Commit Processed History (Avoid Duplicates & Track Topics)
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add processed_videos.json || true
-          git commit -m "Update processed_videos.json history [skip ci]" || true
+          git add processed_videos.json topic_state.json || true
+          git commit -m "Update processed history & topic state [skip ci]" || true
           git push || true
