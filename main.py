@@ -200,7 +200,7 @@ def get_next_human_topic(groq_client=None) -> str:
             try:
                 recent_used = used_topics[-30:] if used_topics else []
                 prompt = (
-                    "You are a podcast content strategist. Generate 1 fresh, highly engaging YouTube search topic for a Hindi podcast interview. "
+                    "You are a podcast content strategist for viral Tier-1 US podcasts. Generate 1 fresh, highly engaging YouTube search topic for an English podcast interview. "
                     "The topic MUST be about human biology, psychology, neuroscience, health, brain science, habits, performance, or mind. "
                     f"Do NOT reuse any of these recent topics: {json.dumps(recent_used)}. "
                     "Return ONLY a JSON object: {\"topic\": \"Topic Name Podcast\"}"
@@ -288,9 +288,9 @@ def fetch_and_download_most_viral_podcast(
     current_topic = search_query
 
     for topic_attempt in range(5):
-        logger.info(f"Searching YouTube for most viral Hindi podcasts (Topic #{topic_attempt + 1}: '{current_topic}')...")
+        logger.info(f"Searching YouTube for most viral podcasts for USA/Tier-1 (Topic #{topic_attempt + 1}: '{current_topic}')...")
         
-        query = f"ytsearch25:{current_topic} hindi podcast"
+        query = f"ytsearch25:{current_topic} podcast interview"
         ydl_opts_search = {
             'extract_flat': True,
             'quiet': True,
@@ -502,22 +502,24 @@ def extract_original_audio_clip(video_path: str, start_sec: float, duration_sec:
 
 def generate_seo_metadata(groq_client: Any, video_title: str) -> Dict[str, Any]:
     """
-    Generates viral title, description, and hashtags/tags for YouTube Shorts & Facebook Reels.
+    Generates viral US/Tier-1 title, description, and hashtags/tags for YouTube Shorts & Facebook Reels.
     """
-    logger.info(f"Generating viral SEO metadata & hashtags for '{video_title}'...")
+    logger.info(f"Generating viral Tier-1 US SEO metadata & hashtags for '{video_title}'...")
 
     prompt = f"""
-You are an expert Social Media Manager for viral Podcast YouTube Shorts & Facebook Reels.
+You are an expert Social Media Manager for viral US Podcast YouTube Shorts & Instagram Reels targeting Tier-1 audiences (USA, UK, Canada).
 Podcast Title: "{video_title}"
 
-Generate high-CTR viral SEO metadata in Hindi/English.
-Include viral tags (hindipodcast, podcastclips, viral, shorts, reels, trending, motivation).
+Generate high-CTR, curiosity-gap viral SEO metadata strictly in American English.
+Title must be dramatic, catchy, or thought-provoking (under 70 chars).
+Description should be a compelling 2-sentence English summary with strong hook and call-to-action.
+Include top Tier-1 viral hashtags: #neuroscience #psychology #brainhealth #mindset #productivity #shorts #reels #viral #usa #podcast.
 
 Respond ONLY with a valid JSON object matching this exact schema:
 {{
-  "title": "Catchy Viral Title 🎬 #Shorts #Reels",
-  "description": "Engaging 2-3 sentence Hindi summary of the podcast conversation.",
-  "tags": ["hindipodcast", "podcastclips", "viral", "shorts", "reels", "trending", "motivation"]
+  "title": "Unbelievable Brain Secret That Changes Everything 🧠 #Shorts #Reels",
+  "description": "Discover how top scientists explain the hidden key behind focus, motivation, and neuroplasticity. Watch till the end!",
+  "tags": ["neuroscience", "psychology", "brainhealth", "mindset", "productivity", "shorts", "reels", "viral", "usa", "podcast"]
 }}
 """
 
@@ -539,35 +541,32 @@ Respond ONLY with a valid JSON object matching this exact schema:
 
     return {
         "title": f"{video_title} 🎬 #Shorts #Reels",
-        "description": f"Watch powerful podcast clip from {video_title} #HindiPodcast #Viral",
-        "tags": ["hindipodcast", "podcastclips", "viral", "shorts", "reels", "trending", "motivation"]
+        "description": f"Watch this mind-blowing podcast breakdown on {video_title} #Shorts #Viral #USA",
+        "tags": ["neuroscience", "psychology", "brainhealth", "mindset", "productivity", "shorts", "reels", "viral", "usa", "podcast"]
     }
 
 # ==============================================================================
-# MODULE 4: ULTRA-FAST BATCH HINGLISH SUBTITLE GENERATION (Real-Time Voice Sync + ASS Animation!)
+# MODULE 4: ULTRA-FAST BATCH ENGLISH SUBTITLE GENERATION (Real-Time Voice Sync + ASS Animation!)
 # ==============================================================================
-def batch_convert_to_hinglish(groq_client: Any, text_list: List[str]) -> List[str]:
+def batch_convert_to_english(groq_client: Any, text_list: List[str]) -> List[str]:
     """
-    Converts a batch list of Hindi sentences into Hinglish using 1 single Groq API call.
-    Speed optimization: 350 seconds -> 1.5 seconds!
+    Converts/translates a batch list of transcript sentences into clean 100% English UPPERCASE captions
+    for USA/Tier-1 viewers using 1 single Groq API call.
     """
     if not text_list:
         return []
 
-    has_devanagari = any(re.search(r'[\u0900-\u097F]', t) for t in text_list)
-    if not has_devanagari:
-        return [t.upper() for t in text_list]
-
     indexed_lines = "\n".join([f"{idx+1}. {t}" for idx, t in enumerate(text_list)])
     
     prompt = f"""
-Convert the following numbered list of Hindi sentences into Hinglish (Hindi spoken language written strictly using the English/Roman alphabet & font).
-Keep exact Hindi words written in Roman script. Do NOT translate the meaning to English.
+Convert/translate the following numbered list of transcript sentences into clean, fluent 100% English.
+If input sentences are in Hindi or Devanagari, translate them accurately to English.
+If input sentences are already in English, refine them for clarity and impact.
 
 Input Sentences:
 {indexed_lines}
 
-Respond ONLY with a numbered list of converted Hinglish sentences in UPPERCASE, matching the exact item count:
+Respond ONLY with a numbered list of converted English sentences in UPPERCASE, matching the exact item count:
 1. ...
 2. ...
 """
@@ -591,7 +590,7 @@ Respond ONLY with a numbered list of converted Hinglish sentences in UPPERCASE, 
             if len(converted) == len(text_list):
                 return converted
         except Exception as e:
-            logger.warning(f"Batch Hinglish conversion failed with model '{model}': {e}")
+            logger.warning(f"Batch English subtitle conversion failed with model '{model}': {e}")
 
     return [t.upper() for t in text_list]
 
@@ -644,13 +643,13 @@ def generate_ass_subtitles(groq_client: Any, audio_mp3_path: str, output_ass_pat
             valid_segments.append({"start": seg_start, "end": seg_end, "text": seg_text})
             hindi_texts.append(seg_text)
 
-    logger.info(f"Batch converting {len(hindi_texts)} subtitle lines to Hinglish in 1 LLM request...")
-    hinglish_texts = batch_convert_to_hinglish(groq_client, hindi_texts)
+    logger.info(f"Batch converting {len(hindi_texts)} subtitle lines to English in 1 LLM request...")
+    english_texts = batch_convert_to_english(groq_client, hindi_texts)
 
     ass_events = []
 
     if words_raw:
-        logger.info(f"Processing {len(words_raw)} real-time word timestamps with Hinglish mapping...")
+        logger.info(f"Processing {len(words_raw)} real-time word timestamps with English mapping...")
         word_list = []
         for w in words_raw:
             w_text = w.get("word") if isinstance(w, dict) else getattr(w, "word", "")
@@ -660,12 +659,12 @@ def generate_ass_subtitles(groq_client: Any, audio_mp3_path: str, output_ass_pat
             if w_text:
                 word_list.append({"text": w_text, "start": w_start, "end": w_end})
 
-        all_hinglish_words = []
-        for h_text in hinglish_texts:
-            all_hinglish_words.extend(h_text.split())
+        all_english_words = []
+        for eng_text in english_texts:
+            all_english_words.extend(eng_text.split())
 
         chunk = []
-        for i, hw in enumerate(all_hinglish_words):
+        for i, ew in enumerate(all_english_words):
             if i < len(word_list):
                 w_info = word_list[i]
                 start_t = w_info["start"] + delay_sec
@@ -674,9 +673,9 @@ def generate_ass_subtitles(groq_client: Any, audio_mp3_path: str, output_ass_pat
                 start_t = (chunk[-1]["end"] if chunk else delay_sec)
                 end_t = start_t + 0.3
 
-            chunk.append({"text": hw, "start": start_t, "end": end_t})
+            chunk.append({"text": ew, "start": start_t, "end": end_t})
 
-            if len(chunk) >= 2 or i == len(all_hinglish_words) - 1:
+            if len(chunk) >= 2 or i == len(all_english_words) - 1:
                 c_start = chunk[0]["start"]
                 c_end = chunk[-1]["end"]
                 c_text = " ".join([item["text"] for item in chunk])
@@ -684,8 +683,8 @@ def generate_ass_subtitles(groq_client: Any, audio_mp3_path: str, output_ass_pat
                 chunk = []
     else:
         logger.info("Falling back to segment word timing...")
-        for seg, hinglish_text in zip(valid_segments, hinglish_texts):
-            words = hinglish_text.split()
+        for seg, eng_text in zip(valid_segments, english_texts):
+            words = eng_text.split()
             if not words:
                 continue
 
