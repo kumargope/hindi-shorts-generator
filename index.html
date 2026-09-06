@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Shorts Generator Mobile App</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px 15px;
+            margin: 0;
+        }
+        .card-custom {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 24px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+        }
+        .app-title {
+            font-weight: 800;
+            background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 1.75rem;
+        }
+        .btn-trigger {
+            background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+            color: #ffffff;
+            border: none;
+            border-radius: 16px;
+            padding: 18px 24px;
+            font-size: 1.25rem;
+            font-weight: 700;
+            width: 100%;
+            box-shadow: 0 10px 25px rgba(37, 99, 235, 0.4);
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+        .btn-trigger:active {
+            transform: scale(0.97);
+            box-shadow: 0 5px 15px rgba(37, 99, 235, 0.3);
+        }
+        .btn-trigger:disabled {
+            background: #475569;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+        .status-box {
+            background: rgba(15, 23, 42, 0.8);
+            border-radius: 12px;
+            padding: 15px;
+            font-family: monospace;
+            font-size: 0.85rem;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            max-height: 180px;
+            overflow-y: auto;
+        }
+        .form-control-dark {
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #fff;
+            border-radius: 12px;
+            padding: 12px 16px;
+        }
+        .form-control-dark:focus {
+            background: rgba(15, 23, 42, 1);
+            color: #fff;
+            border-color: #38bdf8;
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+        }
+        .badge-live {
+            background: rgba(34, 197, 94, 0.2);
+            color: #4ade80;
+            border: 1px solid rgba(74, 222, 128, 0.3);
+            border-radius: 20px;
+            padding: 4px 12px;
+            font-size: 0.75rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container max-w-md">
+        <!-- Header -->
+        <div class="text-center my-3">
+            <div class="d-flex align-items-center justify-content-center gap-2 mb-1">
+                <i class="fa-solid fa-bolt text-warning fs-4"></i>
+                <span class="app-title">Shorts Generator</span>
+            </div>
+            <p class="text-secondary small mb-0">1-Click Tier-1 USA YouTube Shorts Creator</p>
+        </div>
+
+        <!-- Main Card -->
+        <div class="card-custom mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <span class="fw-bold"><i class="fa-solid fa-mobile-screen me-2 text-info"></i>Mobile Launcher</span>
+                <span class="badge-live"><i class="fa-solid fa-circle text-success me-1" style="font-size: 8px;"></i>Cloud Ready</span>
+            </div>
+
+            <!-- Token Config -->
+            <div class="mb-4">
+                <label class="form-label text-secondary small fw-semibold">GitHub Personal Access Token (PAT):</label>
+                <div class="input-group">
+                    <input type="password" id="ghToken" class="form-control form-control-dark" placeholder="ghp_xxxxxxxxxxxx">
+                    <button class="btn btn-outline-secondary text-light border-secondary" type="button" id="toggleToken">
+                        <i class="fa-solid fa-eye" id="eyeIcon"></i>
+                    </button>
+                </div>
+                <div class="form-text text-secondary" style="font-size: 0.75rem;">Saved locally on your phone.</div>
+            </div>
+
+            <!-- 1-Click Trigger Button -->
+            <button id="triggerBtn" class="btn-trigger mb-3">
+                <i class="fa-solid fa-paper-plane fs-4"></i>
+                <span>GENERATE & UPLOAD SHORT</span>
+            </button>
+
+            <!-- Status Logs -->
+            <label class="form-label text-secondary small fw-semibold">Execution Status:</label>
+            <div class="status-box text-light" id="statusLog">
+                <span class="text-secondary">[System Ready] Tap button above to generate & upload a Short to YouTube.</span>
+            </div>
+        </div>
+
+        <!-- Quick Links Card -->
+        <div class="card-custom">
+            <h6 class="fw-bold mb-2 text-secondary small uppercase"><i class="fa-solid fa-link me-2"></i>Quick Actions</h6>
+            <a href="https://github.com/kumargope/hindi-shorts-generator/actions" target="_blank" class="btn btn-dark w-100 text-start border-secondary text-light rounded-3 d-flex align-items-center justify-content-between p-3">
+                <div>
+                    <div class="fw-semibold small"><i class="fa-brands fa-github me-2 text-primary"></i>View GitHub Live Logs</div>
+                    <div class="text-secondary" style="font-size: 0.75rem;">Watch real-time rendering & upload progress</div>
+                </div>
+                <i class="fa-solid fa-chevron-right text-secondary"></i>
+            </a>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="text-center text-secondary py-3" style="font-size: 0.75rem;">
+        Target Audience: 🇺🇸 USA / Tier-1 English Shorts
+    </div>
+
+    <script>
+        const REPO_OWNER = 'kumargope';
+        const REPO_NAME = 'hindi-shorts-generator';
+        const WORKFLOW_ID = 'daily_shorts.yml';
+
+        const tokenInput = document.getElementById('ghToken');
+        const triggerBtn = document.getElementById('triggerBtn');
+        const statusLog = document.getElementById('statusLog');
+        const toggleToken = document.getElementById('toggleToken');
+        const eyeIcon = document.getElementById('eyeIcon');
+
+        // Load saved token
+        const savedToken = localStorage.getItem('gh_pat_shorts_gen');
+        if (savedToken) {
+            tokenInput.value = savedToken;
+        }
+
+        // Save token on change
+        tokenInput.addEventListener('input', () => {
+            localStorage.setItem('gh_pat_shorts_gen', tokenInput.value.trim());
+        });
+
+        // Toggle token visibility
+        toggleToken.addEventListener('click', () => {
+            if (tokenInput.type === 'password') {
+                tokenInput.type = 'text';
+                eyeIcon.classList.remove('fa-eye');
+                eyeIcon.classList.add('fa-eye-slash');
+            } else {
+                tokenInput.type = 'password';
+                eyeIcon.classList.remove('fa-eye-slash');
+                eyeIcon.classList.add('fa-eye');
+            }
+        });
+
+        function logMessage(msg, type = 'info') {
+            const time = new Date().toLocaleTimeString();
+            let colorClass = 'text-light';
+            if (type === 'success') colorClass = 'text-success fw-bold';
+            if (type === 'error') colorClass = 'text-danger fw-bold';
+            if (type === 'warning') colorClass = 'text-warning';
+
+            statusLog.innerHTML = `<div class="${colorClass}">[${time}] ${msg}</div>` + statusLog.innerHTML;
+        }
+
+        triggerBtn.addEventListener('click', async () => {
+            const token = tokenInput.value.trim();
+            if (!token) {
+                logMessage('Error: Please enter your GitHub Personal Access Token (PAT).', 'error');
+                alert('Please enter your GitHub Personal Access Token (PAT).');
+                return;
+            }
+
+            triggerBtn.disabled = true;
+            triggerBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status"></span> Launching Cloud Pipeline...`;
+            logMessage('Sending trigger signal to Cloud Server...', 'warning');
+
+            try {
+                const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/actions/workflows/${WORKFLOW_ID}/dispatches`;
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/vnd.github+json',
+                        'Authorization': `Bearer ${token}`,
+                        'X-GitHub-Api-Version': '2022-11-28'
+                    },
+                    body: JSON.stringify({
+                        ref: 'main'
+                    })
+                });
+
+                if (response.status === 204 || response.ok) {
+                    logMessage('🚀 SUCCESS! Cloud Shorts Generator launched! Video is generating & uploading to YouTube.', 'success');
+                } else {
+                    const errData = await response.json().catch(() => ({}));
+                    logMessage(`Failed to launch (HTTP ${response.status}): ${errData.message || 'Check token permissions (actions:write)'}`, 'error');
+                }
+            } catch (err) {
+                logMessage(`Network Error: ${err.message}`, 'error');
+            } finally {
+                setTimeout(() => {
+                    triggerBtn.disabled = false;
+                    triggerBtn.innerHTML = `<i class="fa-solid fa-paper-plane fs-4"></i> <span>GENERATE & UPLOAD SHORT</span>`;
+                }, 3000);
+            }
+        });
+    </script>
+</body>
+</html>
